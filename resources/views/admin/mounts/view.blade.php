@@ -26,7 +26,9 @@
                 </header>
 
                     <section>
-                        <form action="{{ route('admin.mounts.view', $mount->id) }}" method="POST">
+                        <form action="{{ route('admin.mounts.view', $mount->id) }}" method="POST" id="mountDetailsForm">
+                            @csrf
+                            @method('PATCH')
                             <div class="grid gap-6">
                                 <div role="group" class="field">
                                     <label for="PUniqueID">@lang('admin/mounts.unique_id')</label>
@@ -83,11 +85,8 @@
                     </section>
 
                     <footer>
-                        {!! csrf_field() !!}
-                        {!! method_field('PATCH') !!}
-
-                        <button name="action" value="edit" class="btn ml-auto" data-size="sm">@lang('admin/mounts.save')</button>
-                        <button name="action" value="delete" class="btn mr-auto" data-size="sm" data-variant="destructive"><x-icon name="trash-2" class="size-4" /></button>
+                        <button type="submit" form="mountDetailsForm" name="action" value="edit" class="btn ml-auto" data-size="sm">@lang('admin/mounts.save')</button>
+                        <button type="submit" form="mountDetailsForm" name="action" value="delete" class="btn mr-auto" data-size="sm" data-variant="destructive"><x-icon name="trash-2" class="size-4" /></button>
                     </footer>
             </div>
         </div>
@@ -117,7 +116,11 @@
                                     <td class="sm:w-1/6 middle"><code>{{ $egg->id }}</code></td>
                                     <td class="middle"><a href="{{ route('admin.nests.egg.view', $egg->id) }}">{{ $egg->name }}</a></td>
                                     <td class="sm:w-1/12 middle">
-                                        <button data-action="detach-egg" data-id="{{ $egg->id }}" class="btn" data-size="sm" data-variant="destructive"><x-icon name="trash-2" class="size-4" /></button>
+                                        <form action="{{ route('admin.mounts.eggs.delete', [$mount->id, $egg->id]) }}" method="POST">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn" data-size="sm" data-variant="destructive" aria-label="@lang('admin/mounts.delete') {{ $egg->name }}"><x-icon name="trash-2" class="size-4" /></button>
+                                        </form>
                                     </td>
                                 </tr>
                             @endforeach
@@ -153,7 +156,11 @@
                                     <td class="middle"><a href="{{ route('admin.nodes.view', $node->id) }}">{{ $node->name }}</a></td>
                                     <td class="middle"><code>{{ $node->fqdn }}</code></td>
                                     <td class="sm:w-1/12 middle">
-                                        <button data-action="detach-node" data-id="{{ $node->id }}" class="btn" data-size="sm" data-variant="destructive"><x-icon name="trash-2" class="size-4" /></button>
+                                        <form action="{{ route('admin.mounts.nodes.delete', [$mount->id, $node->id]) }}" method="POST">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn" data-size="sm" data-variant="destructive" aria-label="@lang('admin/mounts.delete') {{ $node->name }}"><x-icon name="trash-2" class="size-4" /></button>
+                                        </form>
                                     </td>
                                 </tr>
                             @endforeach
@@ -165,133 +172,73 @@
         </div>
     </div>
 
-    <dialog class="dialog" id="addEggsModal">
-        <header>
-            <button type="button" class="btn" onclick="this.closest('dialog').close()" aria-label="@lang('admin/mounts.close')" data-variant="outline">
-                <x-icon name="x" class="size-4" />
-            </button>
-
-            <h3 class="text-lg font-semibold">@lang('admin/mounts.add_eggs_title')</h3>
-        </header>
-
-        <form action="{{ route('admin.mounts.eggs', $mount->id) }}" method="POST" id="addEggsForm">
+    <dialog class="dialog" id="addEggsModal" onclick="if (event.target === this) this.close()">
+        <div class="admin-form-dialog sm:max-w-lg">
+            <header>
+                <h3 class="text-lg font-semibold">@lang('admin/mounts.add_eggs_title')</h3>
+            </header>
             <section>
-                <div class="grid gap-6">
-                    <div role="group" class="field">
-                        <label for="pEggs">@lang('admin/mounts.add_eggs_label')</label>
-                        <select id="pEggs" name="eggs[]" class="select" multiple>
-                            @foreach ($nests as $nest)
-                                <optgroup label="{{ $nest->name }}">
-                                    @foreach ($nest->eggs as $egg)
-
-                                        @if (! in_array($egg->id, $mount->eggs->pluck('id')->toArray()))
-                                            <option value="{{ $egg->id }}">{{ $egg->name }}</option>
-                                        @endif
-
+                <form action="{{ route('admin.mounts.eggs', $mount->id) }}" method="POST" id="addEggsForm">
+                    <div class="grid gap-4">
+                        <p class="text-sm font-medium">@lang('admin/mounts.add_eggs_label')</p>
+                        @foreach ($nests as $nest)
+                            @php($availableEggs = $nest->eggs->whereNotIn('id', $mount->eggs->pluck('id')))
+                            @if ($availableEggs->isNotEmpty())
+                                <fieldset class="grid gap-2">
+                                    <legend class="mb-2 text-sm font-semibold">{{ $nest->name }}</legend>
+                                    @foreach ($availableEggs as $egg)
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input type="checkbox" name="eggs[]" value="{{ $egg->id }}" class="input" />
+                                            <span>{{ $egg->name }}</span>
+                                        </label>
                                     @endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
+                                </fieldset>
+                            @endif
+                        @endforeach
                     </div>
-                </div>
-                {!! csrf_field() !!}
+                    {!! csrf_field() !!}
+                </form>
             </section>
-        </form>
-
-        <footer>
-            <button type="button" class="btn mr-auto" data-size="sm" data-variant="outline" onclick="this.closest('dialog').close()">@lang('admin/mounts.cancel')</button>
-            <button type="submit" class="btn" data-size="sm" form="addEggsForm">@lang('admin/mounts.add')</button>
-        </footer>
+            <footer>
+                <button type="button" class="btn" data-size="sm" data-variant="outline" onclick="this.closest('dialog').close()">@lang('admin/mounts.cancel')</button>
+                <button type="submit" class="btn" data-size="sm" form="addEggsForm">@lang('admin/mounts.add')</button>
+            </footer>
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" onclick="this.closest('dialog').close()" aria-label="@lang('admin/mounts.close')"><x-icon name="x" class="size-4" /></button>
+        </div>
     </dialog>
 
-    <dialog class="dialog" id="addNodesModal">
-        <header>
-            <button type="button" class="btn" onclick="this.closest('dialog').close()" aria-label="@lang('admin/mounts.close')" data-variant="outline">
-                <x-icon name="x" class="size-4" />
-            </button>
-
-            <h3 class="text-lg font-semibold">@lang('admin/mounts.add_nodes_title')</h3>
-        </header>
-
-        <form action="{{ route('admin.mounts.nodes', $mount->id) }}" method="POST" id="addNodesForm">
+    <dialog class="dialog" id="addNodesModal" onclick="if (event.target === this) this.close()">
+        <div class="admin-form-dialog sm:max-w-lg">
+            <header>
+                <h3 class="text-lg font-semibold">@lang('admin/mounts.add_nodes_title')</h3>
+            </header>
             <section>
-                <div class="grid gap-6">
-                    <div role="group" class="field">
-                        <label for="pNodes">@lang('admin/mounts.add_nodes_label')</label>
-                        <select id="pNodes" name="nodes[]" class="select" multiple>
-                            @foreach ($locations as $location)
-                                <optgroup label="{{ $location->long }} ({{ $location->short }})">
-                                    @foreach ($location->nodes as $node)
-
-                                        @if (! in_array($node->id, $mount->nodes->pluck('id')->toArray()))
-                                            <option value="{{ $node->id }}">{{ $node->name }}</option>
-                                        @endif
-
+                <form action="{{ route('admin.mounts.nodes', $mount->id) }}" method="POST" id="addNodesForm">
+                    <div class="grid gap-4">
+                        <p class="text-sm font-medium">@lang('admin/mounts.add_nodes_label')</p>
+                        @foreach ($locations as $location)
+                            @php($availableNodes = $location->nodes->whereNotIn('id', $mount->nodes->pluck('id')))
+                            @if ($availableNodes->isNotEmpty())
+                                <fieldset class="grid gap-2">
+                                    <legend class="mb-2 text-sm font-semibold">{{ $location->long }} ({{ $location->short }})</legend>
+                                    @foreach ($availableNodes as $node)
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input type="checkbox" name="nodes[]" value="{{ $node->id }}" class="input" />
+                                            <span>{{ $node->name }}</span>
+                                        </label>
                                     @endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
+                                </fieldset>
+                            @endif
+                        @endforeach
                     </div>
-                </div>
-                {!! csrf_field() !!}
+                    {!! csrf_field() !!}
+                </form>
             </section>
-        </form>
-
-        <footer>
-            <button type="button" class="btn mr-auto" data-size="sm" data-variant="outline" onclick="this.closest('dialog').close()">@lang('admin/mounts.cancel')</button>
-            <button type="submit" class="btn" data-size="sm" form="addNodesForm">@lang('admin/mounts.add')</button>
-        </footer>
+            <footer>
+                <button type="button" class="btn" data-size="sm" data-variant="outline" onclick="this.closest('dialog').close()">@lang('admin/mounts.cancel')</button>
+                <button type="submit" class="btn" data-size="sm" form="addNodesForm">@lang('admin/mounts.add')</button>
+            </footer>
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" onclick="this.closest('dialog').close()" aria-label="@lang('admin/mounts.close')"><x-icon name="x" class="size-4" /></button>
+        </div>
     </dialog>
-@endsection
-
-@section('footer-scripts')
-    @parent
-
-    <script>
-        $(document).ready(function() {
-            $('button[data-action="detach-egg"]').click(function (event) {
-                event.preventDefault();
-
-                const element = $(this);
-                const eggId = $(this).data('id');
-
-                $.ajax({
-                    method: 'DELETE',
-                    url: '/admin/mounts/' + {{ $mount->id }} + '/eggs/' + eggId,
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="_token"]').attr('content') },
-                }).done(function () {
-                    element.parent().parent().className = 'warning';
-                    setTimeout(function() {
-                        element.parent().parent().style.display = 'none';
-                    }, 100);
-                    alert('{{ trans('admin/mounts.egg_detached') }}');
-                }).fail(function (jqXHR) {
-                    console.error(jqXHR);
-                    alert(jqXHR.responseJSON.error);
-                });
-            });
-
-            $('button[data-action="detach-node"]').click(function (event) {
-                event.preventDefault();
-
-                const element = $(this);
-                const nodeId = $(this).data('id');
-
-                $.ajax({
-                    method: 'DELETE',
-                    url: '/admin/mounts/' + {{ $mount->id }} + '/nodes/' + nodeId,
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="_token"]').attr('content') },
-                }).done(function () {
-                    element.parent().parent().className = 'warning';
-                    setTimeout(function() {
-                        element.parent().parent().style.display = 'none';
-                    }, 100);
-                    alert('{{ trans('admin/mounts.node_detached') }}');
-                }).fail(function (jqXHR) {
-                    console.error(jqXHR);
-                    alert(jqXHR.responseJSON.error);
-                });
-            });
-        });
-    </script>
 @endsection

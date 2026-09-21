@@ -6,7 +6,6 @@ use Ramsey\Uuid\Uuid;
 use Illuminate\View\View;
 use Illuminate\Http\Request;
 use Pterodactyl\Models\Nest;
-use Illuminate\Http\Response;
 use Pterodactyl\Models\Mount;
 use Pterodactyl\Models\Location;
 use Illuminate\Http\RedirectResponse;
@@ -113,13 +112,11 @@ class MountController extends Controller
     public function addEggs(Request $request, Mount $mount): RedirectResponse
     {
         $validatedData = $request->validate([
-            'eggs' => 'required|exists:eggs,id',
+            'eggs' => 'required|array|min:1',
+            'eggs.*' => 'required|integer|distinct|exists:eggs,id',
         ]);
 
-        $eggs = $validatedData['eggs'] ?? [];
-        if (count($eggs) > 0) {
-            $mount->eggs()->attach($eggs);
-        }
+        $mount->eggs()->syncWithoutDetaching($validatedData['eggs']);
 
         $this->alert->success('Mount was updated successfully.')->flash();
 
@@ -131,12 +128,12 @@ class MountController extends Controller
      */
     public function addNodes(Request $request, Mount $mount): RedirectResponse
     {
-        $data = $request->validate(['nodes' => 'required|exists:nodes,id']);
+        $data = $request->validate([
+            'nodes' => 'required|array|min:1',
+            'nodes.*' => 'required|integer|distinct|exists:nodes,id',
+        ]);
 
-        $nodes = $data['nodes'] ?? [];
-        if (count($nodes) > 0) {
-            $mount->nodes()->attach($nodes);
-        }
+        $mount->nodes()->syncWithoutDetaching($data['nodes']);
 
         $this->alert->success('Mount was updated successfully.')->flash();
 
@@ -146,20 +143,24 @@ class MountController extends Controller
     /**
      * Deletes an egg from the mount's many-to-many relation.
      */
-    public function deleteEgg(Mount $mount, int $egg_id): Response
+    public function deleteEgg(Mount $mount, int $egg_id): RedirectResponse
     {
         $mount->eggs()->detach($egg_id);
 
-        return response('', 204);
+        $this->alert->success('Mount was updated successfully.')->flash();
+
+        return redirect()->route('admin.mounts.view', $mount->id);
     }
 
     /**
      * Deletes a node from the mount's many-to-many relation.
      */
-    public function deleteNode(Mount $mount, int $node_id): Response
+    public function deleteNode(Mount $mount, int $node_id): RedirectResponse
     {
         $mount->nodes()->detach($node_id);
 
-        return response('', 204);
+        $this->alert->success('Mount was updated successfully.')->flash();
+
+        return redirect()->route('admin.mounts.view', $mount->id);
     }
 }
